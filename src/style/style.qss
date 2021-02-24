@@ -1,3 +1,8 @@
-QMenuBar::item:disabled {
+QMenuBar::item:disabled {{
     color: #b8b8b8;
-}
+}}
+
+QPushButton:hover {{
+    background-color: {QTMATERIAL_PRIMARYCOLOR};
+    color: {QTMATERIAL_PRIMARYTEXTCOLOR};
+}}

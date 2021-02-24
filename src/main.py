@@ -18,7 +18,9 @@ def main():
             os.path.realpath("src/style/style.qss")
         ), "r"
     ) as stylesheet:
-        app.setStyleSheet(app.styleSheet() + stylesheet.read())
+        app.setStyleSheet(
+            app.styleSheet() + stylesheet.read().format(**os.environ)
+        )
 
     win.show()
 
