@@ -1,0 +1,19 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+toml = "*"
+pyqt5 = "*"
+pillow = "*"
+appdirs = "*"
+qt-material = "*"
+
+[dev-packages]
+flake8 = "*"
+autopep8 = "*"
+pyinstaller = "*"
+
+[requires]
+python_version = "3.9"

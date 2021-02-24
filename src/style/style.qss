@@ -1,0 +1,3 @@
+QMenuBar::item:disabled {
+    color: #b8b8b8;
+}
