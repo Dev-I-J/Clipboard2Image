@@ -87,22 +87,6 @@ class Clipboard2Image(QMainWindow):
 
         self.activeImageChanged.emit()
 
-    def _createWindow(self) -> None:
-        __screenSize = self.app.desktop().screenGeometry()
-        __screenWidth = int(__screenSize.width() -
-                            ((__screenSize.width() / 6) * 3))
-        __screenHeight = int(__screenSize.height() -
-                             (__screenSize.height() / 12) * 3)
-
-        __windowSize = QSize(__screenWidth, __screenHeight)
-
-        self.centralWidget = QStackedWidget(self)
-
-        self.setWindowTitle(f"{self.appTitle} {self.appVersion}")
-        self.setWindowIcon(QIcon(self.appIconPath))
-        self.setCentralWidget(self.centralWidget)
-        self.resize(__windowSize)
-
     def _loadSettings(self) -> None:
         settingsFilePath = os.path.join(
             user_config_dir(self.appTitle), "settings.toml"
@@ -134,23 +118,39 @@ class Clipboard2Image(QMainWindow):
             self.appThemeName = sys.argv[2].replace('-', ' ').title()
         self._createMenuBar()
 
+    def _createWindow(self) -> None:
+        __screenSize = self.app.desktop().screenGeometry()
+        __screenWidth = int(__screenSize.width() -
+                            ((__screenSize.width() / 6) * 3))
+        __screenHeight = int(__screenSize.height() -
+                             (__screenSize.height() / 12) * 3)
+
+        __windowSize = QSize(__screenWidth, __screenHeight)
+
+        self.centralWidget = QStackedWidget(self)
+
+        self.setWindowTitle(f"{self.appTitle} {self.appVersion}")
+        self.setWindowIcon(QIcon(self.appIconPath))
+        self.setCentralWidget(self.centralWidget)
+        self.resize(__windowSize)
+
     def _createWidgets(self) -> None:
-        pasteLabel = QLabel(
-            "Paste Your Image Here (Ctrl + V), Or Click The Button Below \
-To Get The Last Copied Item!", self
-        )
-
-        getLatestCopyItem = QPushButton("Get The Last Copied Item!", self)
-        getLatestCopyItem.clicked.connect(self.imagePasted)
-
         homeWidget = QWidget(self.centralWidget)
 
         homeLayout = QVBoxLayout(homeWidget)
         homeLayout.setAlignment(Qt.AlignCenter)
 
-        homeLayout.addWidget(pasteLabel)
+        homePasteLabel = QLabel(
+            "Paste Your Image Here (Ctrl + V), Or Click The Button Below \
+To Get The Last Copied Item!", self
+        )
+
+        homeGetLatestCopyItem = QPushButton("Get The Last Copied Item!", self)
+        homeGetLatestCopyItem.clicked.connect(self.imagePasted)
+
+        homeLayout.addWidget(homePasteLabel)
         homeLayout.addSpacing(50)
-        homeLayout.addWidget(getLatestCopyItem)
+        homeLayout.addWidget(homeGetLatestCopyItem)
 
         homeWidget.setLayout(homeLayout)
 
