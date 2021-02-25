@@ -14,7 +14,8 @@ from PyQt5.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QTextBrowser,
-    QComboBox
+    QComboBox,
+    QScrollArea
 )
 
 from PyQt5.QtCore import (
@@ -37,7 +38,7 @@ from PyQt5.QtGui import (
 
 from PyQt5.sip import SIP_VERSION_STR
 
-from PIL import Image, ImageGrab
+from PIL import Image, ImageGrab, ImageQt
 from PIL import __version__ as pil_version
 
 from qt_material import list_themes, apply_stylesheet
@@ -142,10 +143,12 @@ class Clipboard2Image(QMainWindow):
 
         homePasteLabel = QLabel(
             "Paste Your Image Here (Ctrl + V), Or Click The Button Below \
-To Get The Last Copied Item!", self
+To Get The Last Copied Item!", homeWidget
         )
 
-        homeGetLatestCopyItem = QPushButton("Get The Last Copied Item!", self)
+        homeGetLatestCopyItem = QPushButton(
+            "Get The Last Copied Item!", homeWidget
+        )
         homeGetLatestCopyItem.clicked.connect(self.imagePasted)
 
         homeLayout.addWidget(homePasteLabel)
@@ -154,7 +157,26 @@ To Get The Last Copied Item!", self
 
         homeWidget.setLayout(homeLayout)
 
+        imageViewWidget = QWidget(self.centralWidget)
+
+        imageViewLayout = QVBoxLayout(imageViewWidget)
+        imageViewLayout.setAlignment(Qt.AlignCenter)
+
+        imageViewScrollArea = QScrollArea(imageViewWidget)
+        imageViewScrollArea.setWidgetResizable(True)
+
+        self.imageViewLabel = QLabel(imageViewScrollArea)
+        self.imageViewLabel.setAlignment(Qt.AlignCenter)
+
+        imageViewScrollArea.setWidget(self.imageViewLabel)
+
+        imageViewLayout.addWidget(imageViewScrollArea)
+
+        imageViewWidget.setLayout(imageViewLayout)
+
         self.centralWidget.addWidget(homeWidget)
+        self.centralWidget.addWidget(imageViewWidget)
+        self.centralWidget.setCurrentIndex(0)
 
     def _createMenuBar(self) -> None:
         menuBar = QMenuBar(self)
@@ -203,6 +225,19 @@ To Get The Last Copied Item!", self
         settingsAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_S)
         settingsAction.triggered.connect(self.onSettingsActionTriggered)
 
+        backAction = QAction("Back", self)
+        backAction.setIcon(QIcon(
+            os.path.abspath(
+                os.path.realpath(
+                    "src/icons/icons8/icons8-back-50.png"
+                    if self.appTheme.startswith('light') else
+                    "src/icons/icons8/icons8-back-white-50.png"
+                )
+            )
+        ))
+        backAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_B)
+        backAction.triggered.connect(self.onBackActionTriggered)
+
         aboutAction = QAction("About", self)
         aboutAction.setIcon(QIcon(
             os.path.abspath(
@@ -249,6 +284,10 @@ To Get The Last Copied Item!", self
             settingsAction
         ])
 
+        imageMenu.addActions([
+            backAction
+        ])
+
         helpMenu.addActions([
             aboutAction,
             licenseAction,
@@ -285,6 +324,8 @@ To Get The Last Copied Item!", self
         ).exec()
         if exitConfirmation == QMessageBox.Yes:
             event.accept()
+        else:
+            self.activeImageChanged.emit()
 
     @pyqtSlot()
     def onNewWindowActionTriggered(_) -> None:
@@ -358,6 +399,10 @@ To Get The Last Copied Item!", self
         settingsDialog.setLayout(settingsDialogLayout)
         settingsDialog.resize(400, 100)
         settingsDialog.exec()
+
+    @pyqtSlot()
+    def onBackActionTriggered(self):
+        self.activeImage = None
 
     @pyqtSlot()
     def onAboutActionTriggered(self) -> None:
@@ -462,7 +507,7 @@ For More Developer Info, Use <code>Help > Developer Info</code>
         sysVersionInfo = sys.version_info
 
         pipVersion = pip_version
-        pipModulesStr = "<br>"
+        pipModulesStr = "(package - version)<br>"
 
         for m in working_set:
             pipModulesStr += f"<br><span>{m.project_name} - {m.parsed_version}"
@@ -494,7 +539,7 @@ For More Developer Info, Use <code>Help > Developer Info</code>
 <i><code>{sysVersionInfo}</code></i></i><br>
 <h3>pip</h3>
 <b><code><b>pip</code> version:</b> <i><code>{pipVersion}</code></i><br>
-<b><code><b>pip</code> modules:</b> <i><code>{pipModulesStr}</code></i><br>
+<b><code><b>pip</code> packages:</b> <i><code>{pipModulesStr}</code></i><br>
 <h3>PIL</h3>
 <b><code>PIL (pillow)</code> version:</b> <i><code>{pilVersion}</code></i><br>
 <h3>PyQt</h3>
@@ -529,16 +574,22 @@ executable:</b> <i><code>{pyInstallerExe}</code></i><br>
     def onActiveImageChanged(self) -> None:
         if self.activeImage is not None:
             self.imageMenu.setEnabled(True)
+            self.imageViewLabel.setPixmap(
+                QPixmap.fromImage(ImageQt.ImageQt(self.activeImage))
+            )
+            self.centralWidget.setCurrentIndex(1)
         else:
             self.imageMenu.setEnabled(False)
+            self.centralWidget.setCurrentIndex(0)
 
     @pyqtSlot()
     def imagePasted(self) -> None:
         image = ImageGrab.grabclipboard()
-        if type(image) is not Image and type(image) is list:
+        if type(image) is list:
             image = Image.open(image[0])
         else:
-            raise NoImageInClipboard(self.app.clipboard().text())
+            if not isinstance(image, Image.Image):
+                raise NoImageInClipboard(self.app.clipboard().text())
         self.activeImage = image
 
     @pyqtProperty(Image.Image, notify=activeImageChanged)
