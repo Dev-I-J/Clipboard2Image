@@ -22,7 +22,9 @@ from PyQt5.QtWidgets import (
     QLineEdit,
     QCheckBox,
     QRadioButton,
-    QColorDialog
+    QColorDialog,
+    QActionGroup,
+    QSlider
 )
 
 from PyQt5.QtCore import (
@@ -177,6 +179,69 @@ class Clipboard2Image(QMainWindow):
         self.resize(__windowSize)
 
     def _createMenuBar(self) -> None:
+        def __zoomSize(action: QAction) -> None:
+            if not action.text() == "Custom":
+                zoomPercentageStr = action.text()
+                zoomPercentage = int(action.text().removesuffix("%"))
+
+                self.imageViewLabel.setPixmap(QPixmap.fromImage(
+                    ImageQt.ImageQt(self.activeImage.convert("RGBA"))
+                ).scaled(
+                    self.activeImage.size[0] * zoomPercentage / 100,
+                    self.activeImage.size[1] * zoomPercentage / 100
+                ))
+
+                self.imageZoom.setText(zoomPercentageStr)
+            else:
+                def __zoomCustom():
+                    zoomPercentageStr = str(zoomDialogSlider.value()) + "%"
+                    zoomPercentage = zoomDialogSlider.value()
+
+                    self.imageViewLabel.setPixmap(QPixmap.fromImage(
+                        ImageQt.ImageQt(self.activeImage.convert("RGBA"))
+                    ).scaled(
+                        self.activeImage.size[0] * zoomPercentage / 100,
+                        self.activeImage.size[1] * zoomPercentage / 100
+                    ))
+
+                    self.imageZoom.setText(zoomPercentageStr)
+
+                    zoomDialog.close()
+
+                zoomDialog = QDialog(self)
+
+                zoomDialogLayout = QVBoxLayout(zoomDialog)
+
+                zoomDialogLabel = QLabel(self.imageZoom.text(), zoomDialog)
+                zoomDialogLabel.setAlignment(Qt.AlignCenter)
+
+                zoomDialogSlider = QSlider(Qt.Horizontal, zoomDialog)
+                zoomDialogSlider.setRange(10, 2000)
+                zoomDialogSlider.setSingleStep(5)
+                zoomDialogSlider.setValue(
+                    int(self.imageZoom.text().removesuffix("%"))
+                )
+                zoomDialogSlider.valueChanged.connect(
+                    lambda val: zoomDialogLabel.setText(str(val) + "%")
+                )
+
+                zoomDialogButtons = QDialogButtonBox(
+                    QDialogButtonBox.Ok, zoomDialog
+                )
+                zoomDialogButtons.accepted.connect(__zoomCustom)
+
+                zoomDialogLayout.addWidget(zoomDialogLabel)
+                zoomDialogLayout.addWidget(zoomDialogSlider)
+                zoomDialogLayout.addSpacing(25)
+                zoomDialogLayout.addWidget(zoomDialogButtons)
+
+                zoomDialog.setWindowTitle(self.appTitle)
+                zoomDialog.setWindowIcon(QIcon(self.appIconPath))
+                zoomDialog.setLayout(zoomDialogLayout)
+
+                zoomDialog.resize(400, 100)
+                zoomDialog.exec()
+
         menuBar = QMenuBar(self)
 
         fileMenu = QMenu("File", self)
@@ -260,6 +325,80 @@ class Clipboard2Image(QMainWindow):
         ))
         self.backAction.setShortcut(QKeySequence.Back)
         self.backAction.triggered.connect(self.onBackActionTriggered)
+
+        zoomActionMenu = QMenu("Zoom", self.imageMenu)
+        zoomActionMenu.setIcon(QIcon(
+            os.path.abspath(
+                os.path.realpath(
+                    "src/icons/icons8/icons8-zoom-mode-50.png"
+                    if self.appTheme.startswith('light') else
+                    "src/icons/icons8/icons8-zoom-mode-white-50.png"
+                )
+            )
+        ))
+
+        self.zoomActionGroup = QActionGroup(zoomActionMenu)
+
+        zoomCustom = QAction("Custom", zoomActionMenu)
+        zoom10Percent = QAction("10%", zoomActionMenu)
+        zoom25Percent = QAction("25%", zoomActionMenu)
+        zoom50Percent = QAction("50%", zoomActionMenu)
+        zoom75Percent = QAction("75%", zoomActionMenu)
+        zoom100Percent = QAction("100%", zoomActionMenu)
+        zoom150Percent = QAction("150%", zoomActionMenu)
+        zoom200Percent = QAction("200%", zoomActionMenu)
+        zoom300Percent = QAction("300%", zoomActionMenu)
+        zoom400Percent = QAction("400%", zoomActionMenu)
+        zoom500Percent = QAction("500%", zoomActionMenu)
+        zoom1000Percent = QAction("1000%", zoomActionMenu)
+        zoom2000Percent = QAction("2000%", zoomActionMenu)
+
+        zoomCustom.setCheckable(True)
+        zoom10Percent.setCheckable(True)
+        zoom25Percent.setCheckable(True)
+        zoom50Percent.setCheckable(True)
+        zoom75Percent.setCheckable(True)
+        zoom100Percent.setCheckable(True)
+        zoom150Percent.setCheckable(True)
+        zoom200Percent.setCheckable(True)
+        zoom300Percent.setCheckable(True)
+        zoom400Percent.setCheckable(True)
+        zoom500Percent.setCheckable(True)
+        zoom1000Percent.setCheckable(True)
+        zoom2000Percent.setCheckable(True)
+
+        zoom100Percent.setChecked(True)
+
+        zoomActionMenu.addAction(zoomCustom)
+        zoomActionMenu.addSeparator()
+        zoomActionMenu.addAction(zoom10Percent)
+        zoomActionMenu.addAction(zoom25Percent)
+        zoomActionMenu.addAction(zoom50Percent)
+        zoomActionMenu.addAction(zoom75Percent)
+        zoomActionMenu.addAction(zoom100Percent)
+        zoomActionMenu.addAction(zoom150Percent)
+        zoomActionMenu.addAction(zoom200Percent)
+        zoomActionMenu.addAction(zoom300Percent)
+        zoomActionMenu.addAction(zoom400Percent)
+        zoomActionMenu.addAction(zoom500Percent)
+        zoomActionMenu.addAction(zoom1000Percent)
+        zoomActionMenu.addAction(zoom2000Percent)
+
+        self.zoomActionGroup.addAction(zoomCustom)
+        self.zoomActionGroup.addAction(zoom10Percent)
+        self.zoomActionGroup.addAction(zoom25Percent)
+        self.zoomActionGroup.addAction(zoom50Percent)
+        self.zoomActionGroup.addAction(zoom75Percent)
+        self.zoomActionGroup.addAction(zoom100Percent)
+        self.zoomActionGroup.addAction(zoom150Percent)
+        self.zoomActionGroup.addAction(zoom200Percent)
+        self.zoomActionGroup.addAction(zoom300Percent)
+        self.zoomActionGroup.addAction(zoom400Percent)
+        self.zoomActionGroup.addAction(zoom500Percent)
+        self.zoomActionGroup.addAction(zoom1000Percent)
+        self.zoomActionGroup.addAction(zoom2000Percent)
+
+        self.zoomActionGroup.triggered.connect(__zoomSize)
 
         self.copyAction = QAction("Copy To Clipboard", self)
         self.copyAction.setIcon(QIcon(
@@ -399,16 +538,22 @@ class Clipboard2Image(QMainWindow):
         devInfoAction.triggered.connect(self.onDevInfoActionTriggered)
 
         fileMenu.addAction(newWindowAction)
+        fileMenu.addSeparator()
         fileMenu.addAction(self.pasteAction)
         fileMenu.addAction(self.openAction)
+        fileMenu.addSeparator()
         fileMenu.addAction(exitAction)
 
         editMenu.addAction(settingsAction)
 
         self.imageMenu.addAction(self.backAction)
+        self.imageMenu.addSeparator()
+        self.imageMenu.addMenu(zoomActionMenu)
+        self.imageMenu.addSeparator()
         self.imageMenu.addAction(self.copyAction)
         self.imageMenu.addAction(self.saveAction)
         self.imageMenu.addAction(self.saveAsAction)
+        self.imageMenu.addSeparator()
         self.imageMenu.addAction(self.resizeAction)
         self.imageMenu.addAction(self.rotateAction)
         self.imageMenu.addAction(self.rotateRightAction)
@@ -472,7 +617,7 @@ Extension.",
 To Paste Your Image!
 
 You Can Also An Existing Image File By Clicking The \"Open An Image File!\" \
-Button.""", homeWidget
+Button (Ctrl + O).""", homeWidget
         )
         homePasteLabel.setAlignment(Qt.AlignCenter)
 
@@ -534,11 +679,15 @@ Button.""", homeWidget
 
     def _createStatusBar(self):
         self.statusBar = QStatusBar(self)
+
+        self.imageZoom = QLabel("100%", self.statusBar)
         self.imageDimensions = QLabel(self.statusBar)
         self.imageFormat = QLabel(self.statusBar)
+
         self.statusBar.addPermanentWidget(QLabel("Ready", self.statusBar))
-        self.statusBar.insertPermanentWidget(0, self.imageDimensions)
-        self.statusBar.insertPermanentWidget(1, self.imageFormat)
+        self.statusBar.insertPermanentWidget(0, self.imageZoom)
+        self.statusBar.insertPermanentWidget(1, self.imageDimensions)
+        self.statusBar.insertPermanentWidget(2, self.imageFormat)
         self.setStatusBar(self.statusBar)
 
     def _createSignalBindings(self) -> None:
@@ -1219,8 +1368,11 @@ executable:</b> <i><code>{pyInstallerExe}</code></i><br>
                 f"{self.activeImage.size[0]} × {self.activeImage.size[1]}"
             )
             self.imageFormat.setText(self.activeImage.format)
-            self.statusBar.insertPermanentWidget(0, self.imageDimensions)
-            self.statusBar.insertPermanentWidget(1, self.imageFormat)
+
+            self.statusBar.insertPermanentWidget(0, self.imageZoom)
+            self.statusBar.insertPermanentWidget(1, self.imageDimensions)
+            self.statusBar.insertPermanentWidget(2, self.imageFormat)
+            self.imageZoom.show()
             self.imageDimensions.show()
             self.imageFormat.show()
 
@@ -1248,6 +1400,7 @@ executable:</b> <i><code>{pyInstallerExe}</code></i><br>
             self.openAction.setEnabled(True)
 
             self.toolBar.setEnabled(False)
+            self.statusBar.removeWidget(self.imageZoom)
             self.statusBar.removeWidget(self.imageDimensions)
             self.statusBar.removeWidget(self.imageFormat)
             self.centralWidget.setCurrentIndex(0)
