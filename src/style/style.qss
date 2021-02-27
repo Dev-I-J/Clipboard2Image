@@ -6,3 +6,7 @@ QPushButton:hover {{
     background-color: {QTMATERIAL_PRIMARYCOLOR};
     color: {QTMATERIAL_PRIMARYTEXTCOLOR};
 }}
+
+QStatusBar {{
+    border-top: 1px solid {QTMATERIAL_SECONDARYLIGHTCOLOR};
+}}
