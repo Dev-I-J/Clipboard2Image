@@ -914,7 +914,7 @@ Extension.",
                     self.activeImage = self.activeImage.rotate(
                         angle, fillcolor=(255, 255, 255, 0,),
                         expand=True, resample=Image.BICUBIC
-                    ).convert("RGBA")
+                    )
                 else:
                     self.activeImage = self.activeImage.rotate(
                         angle, fillcolor=self.rotatedImgColor,
