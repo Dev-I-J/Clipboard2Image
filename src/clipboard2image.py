@@ -470,6 +470,7 @@ Extension.",
         homePasteLabel = QLabel(
             """Paste Your Image Here (Ctrl + V), Or Click The Button Below \
 To Paste Your Image!
+
 You Can Also An Existing Image File By Clicking The \"Open An Image File!\" \
 Button.""", homeWidget
         )
