@@ -21,7 +21,8 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QLineEdit,
     QCheckBox,
-    QRadioButton
+    QRadioButton,
+    QColorDialog
 )
 
 from PyQt5.QtCore import (
@@ -44,7 +45,7 @@ from PyQt5.QtGui import (
 
 from PyQt5.sip import SIP_VERSION_STR
 
-from PIL import Image, ImageGrab, ImageQt, UnidentifiedImageError
+from PIL import Image, ImageGrab, ImageOps, ImageQt, UnidentifiedImageError
 from PIL import __version__ as pil_version
 
 from qt_material import list_themes, apply_stylesheet
@@ -448,6 +449,7 @@ Extension.",
                 )
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -458,6 +460,7 @@ Extension.",
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.setInformativeText(str(e))
                 errorMessage.exec()
+                return None
 
         homeWidget = QWidget(self.centralWidget)
 
@@ -589,6 +592,7 @@ Button.""", homeWidget
                             errorMessage.setInformativeText(str(e))
                             errorMessage.setWindowIcon(QIcon(self.appIconPath))
                             errorMessage.exec()
+                            return None
                     with open(settingsFilePath, "w") as settingsFile:
                         tomlObject["theme"]["xml"] = selectedTheme
                         tomlObject["theme"]["name"] = selectedThemeName
@@ -613,6 +617,7 @@ Button.""", homeWidget
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
 
             self._createMenuBar()
             settingsDialog.close()
@@ -688,6 +693,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -698,6 +704,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
             self.statusBar.showMessage("Image Saved", 2000)
         else:
             self.onSaveAsActionTriggered()
@@ -731,6 +738,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -741,6 +749,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
+                return None
             self.activeImagePath = f
             self.statusBar.showMessage(
                 f"Image Saved As {self.activeImagePath}", 2000
@@ -751,8 +760,20 @@ Extension.",
         def __resizeImage():
             oldDimensions = self.imageDimensions.text()
 
-            newWidth = int(round(float(resizeDialogWidthField.text())))
-            newHeight = int(round(float(resizeDialogHeightField.text())))
+            try:
+                newWidth = int(round(float(resizeDialogWidthField.text())))
+                newHeight = int(round(float(resizeDialogHeightField.text())))
+            except ValueError as e:
+                errorMessage = QMessageBox(
+                    QMessageBox.Warning,
+                    self.appTitle,
+                    "Invalid Value Entered! Plase Enter A Valid Value.",
+                    QMessageBox.Ok
+                )
+                errorMessage.setInformativeText(str(e))
+                errorMessage.setWindowIcon(QIcon(self.appIconPath))
+                errorMessage.exec()
+                return None
 
             maintainAspect = resizeDialogAspectRatio.isChecked()
 
@@ -760,19 +781,28 @@ Extension.",
                 if resizeDialogRespectWidth.isChecked():
                     widthPercent = (newWidth / self.activeImage.size[0])
                     realHeight = int(float(newHeight) * float(widthPercent))
+                    imgFormat = self.activeImage.format
                     self.activeImage = self.activeImage.resize(
                         (newWidth, realHeight,), Image.ANTIALIAS
                     )
+                    self.activeImage.format = imgFormat
+                    self.imageFormat.setText(imgFormat)
                 else:
                     heightPercent = (newHeight / self.activeImage.size[1])
                     realWidth = int(float(newWidth) * float(heightPercent))
+                    imgFormat = self.activeImage.format
                     self.activeImage = self.activeImage.resize(
                         (realWidth, newHeight,), Image.ANTIALIAS
                     )
+                    self.activeImage.format = imgFormat
+                    self.imageFormat.setText(imgFormat)
             else:
+                imgFormat = self.activeImage.format
                 self.activeImage = self.activeImage.resize(
                     (newWidth, newHeight,), Image.ANTIALIAS
                 )
+                self.activeImage.format = imgFormat
+                self.imageFormat.setText(imgFormat)
 
             self.imageDimensions.setText(
                 f"{self.activeImage.size[0]} × {self.activeImage.size[1]}"
@@ -875,16 +905,135 @@ Extension.",
 
     @pyqtSlot()
     def onRotateActionTriggered(self):
-        self.statusBar.showMessage("Image Rotated", 2000)
+        def __rotateImage():
+            try:
+                angle = int(rotateDialogAngleField.text())
+                imgFormat = self.activeImage.format
+
+                if self.rotatedImgColor == "alpha":
+                    self.activeImage = self.activeImage.rotate(
+                        angle, fillcolor=(255, 255, 255, 0,),
+                        expand=True, resample=Image.BICUBIC
+                    ).convert("RGBA")
+                else:
+                    self.activeImage = self.activeImage.rotate(
+                        angle, fillcolor=self.rotatedImgColor,
+                        expand=True, resample=Image.BICUBIC
+                    )
+
+                self.activeImage.format = imgFormat
+                self.imageFormat.setText(imgFormat)
+            except ValueError as e:
+                errorMessage = QMessageBox(
+                    QMessageBox.Warning,
+                    self.appTitle,
+                    "Invalid Value Entered! Plase Enter A Valid Value.",
+                    QMessageBox.Ok
+                )
+                errorMessage.setInformativeText(str(e))
+                errorMessage.setWindowIcon(QIcon(self.appIconPath))
+                errorMessage.exec()
+                return None
+
+            rotateDialog.close()
+            self.statusBar.showMessage(f"Image Rotated {angle} Degrees", 2000)
+
+        def __preview(color: str = "#ffffff") -> ImageQt.ImageQt:
+            preview = Image.new("RGBA", (60, 25,), color)
+            preview = ImageOps.expand(preview, border=4, fill="black")
+            return ImageQt.ImageQt(preview)
+
+        def __pickColor():
+            self.rotatedImgColor = QColorDialog.getColor().name()
+            rotateDialogColorPreview.setVisible(True)
+            rotateDialogColorPreview.setPixmap(QPixmap.fromImage(
+                __preview(self.rotatedImgColor))
+            )
+
+        def __transparent():
+            self.rotatedImgColor = "alpha"
+            rotateDialogColorPreview.setVisible(False)
+
+        self.rotatedImgColor = "#ffffff"
+
+        rotateDialog = QDialog(self)
+
+        rotateDialogLayout = QVBoxLayout(rotateDialog)
+
+        rotateDialogAngle = QWidget(rotateDialog)
+
+        rotateDialogAngleLayout = QHBoxLayout(rotateDialogAngle)
+
+        rotateDialogAngleLabel = QLabel("Angle:", rotateDialogAngle)
+        rotateDialogAngleField = QLineEdit(rotateDialogAngle)
+
+        rotateDialogAngleLayout.addWidget(rotateDialogAngleLabel)
+        rotateDialogAngleLayout.addSpacing(10)
+        rotateDialogAngleLayout.addWidget(rotateDialogAngleField)
+        rotateDialogAngleLayout.addWidget(QLabel("Degrees", rotateDialogAngle))
+
+        rotateDialogAngle.setLayout(rotateDialogAngleLayout)
+
+        rotateDialogColor = QWidget(rotateDialog)
+
+        rotateDialogColorLayout = QHBoxLayout(rotateDialogColor)
+
+        rotateDialogColorLabel = QLabel("Background Color:", rotateDialogColor)
+
+        rotateDialogColorPreview = QLabel(rotateDialogColor)
+        rotateDialogColorPreview.setPixmap(QPixmap.fromImage(__preview()))
+
+        rotateDialogColorPicker = QPushButton("Select", rotateDialogColor)
+        rotateDialogColorPicker.clicked.connect(__pickColor)
+
+        rotateDialogColorAlpha = QPushButton("Transparent", rotateDialogColor)
+        rotateDialogColorAlpha.clicked.connect(__transparent)
+
+        rotateDialogColorLayout.addWidget(rotateDialogColorLabel)
+        rotateDialogColorLayout.addSpacing(10)
+        rotateDialogColorLayout.addWidget(rotateDialogColorPreview)
+        rotateDialogColorLayout.addWidget(rotateDialogColorPicker)
+        rotateDialogColorLayout.addWidget(rotateDialogColorAlpha)
+
+        rotateDialogColor.setLayout(rotateDialogColorLayout)
+
+        rotateDialogButtons = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+            rotateDialog
+        )
+        rotateDialogButtons.accepted.connect(__rotateImage)
+        rotateDialogButtons.rejected.connect(rotateDialog.close)
+
+        rotateDialogAngleField.returnPressed.connect(
+            rotateDialogButtons.accepted.emit
+        )
+
+        rotateDialogLayout.addWidget(rotateDialogAngle)
+        rotateDialogLayout.addWidget(rotateDialogColor)
+        rotateDialogLayout.addSpacing(25)
+        rotateDialogLayout.addWidget(rotateDialogButtons)
+
+        rotateDialog.setWindowTitle(self.appTitle)
+        rotateDialog.setWindowIcon(QIcon(self.appIconPath))
+        rotateDialog.setLayout(rotateDialogLayout)
+
+        rotateDialog.resize(400, 150)
+        rotateDialog.exec()
 
     @pyqtSlot()
     def onRotateRightActionTriggered(self):
+        imgFormat = self.activeImage.format
         self.activeImage = self.activeImage.transpose(Image.ROTATE_270)
+        self.activeImage.format = imgFormat
+        self.imageFormat.setText(imgFormat)
         self.statusBar.showMessage("Image Rotated To The Right", 2000)
 
     @pyqtSlot()
     def onRotateLeftActionTriggered(self):
+        imgFormat = self.activeImage.format
         self.activeImage = self.activeImage.transpose(Image.ROTATE_90)
+        self.activeImage.format = imgFormat
+        self.imageFormat.setText(imgFormat)
         self.statusBar.showMessage("Image Rotated To The Left", 2000)
 
     @pyqtSlot()
@@ -1127,6 +1276,7 @@ File!\" Buttton!",
                     )
                     errorMessage.setWindowIcon(QIcon(self.appIconPath))
                     errorMessage.exec()
+                    return None
             self.activeImage = image
         except UnidentifiedImageError:
             errorMessage = QMessageBox(
@@ -1137,6 +1287,7 @@ File!\" Buttton!",
             )
             errorMessage.setWindowIcon(QIcon(self.appIconPath))
             errorMessage.exec()
+            return None
 
     @pyqtProperty(Image.Image, notify=activeImageChanged)
     def activeImage(self) -> Image.Image:
