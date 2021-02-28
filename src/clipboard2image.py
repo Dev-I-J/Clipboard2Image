@@ -42,7 +42,8 @@ from PyQt5.QtGui import (
     QKeySequence,
     QCloseEvent,
     QPixmap,
-    QTextOption
+    QTextOption,
+    QColor
 )
 
 from PyQt5.sip import SIP_VERSION_STR
@@ -226,9 +227,11 @@ class Clipboard2Image(QMainWindow):
                 )
 
                 zoomDialogButtons = QDialogButtonBox(
-                    QDialogButtonBox.Ok, zoomDialog
+                    QDialogButtonBox.Ok | QDialogButtonBox.Cancel,
+                    zoomDialog
                 )
                 zoomDialogButtons.accepted.connect(__zoomCustom)
+                zoomDialogButtons.rejected.connect(zoomDialog.close)
 
                 zoomDialogLayout.addWidget(zoomDialogLabel)
                 zoomDialogLayout.addWidget(zoomDialogSlider)
@@ -594,7 +597,7 @@ Extension.",
                 )
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
+
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -605,7 +608,6 @@ Extension.",
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.setInformativeText(str(e))
                 errorMessage.exec()
-                return None
 
         homeWidget = QWidget(self.centralWidget)
 
@@ -742,7 +744,7 @@ Button (Ctrl + O).""", homeWidget
                             errorMessage.setInformativeText(str(e))
                             errorMessage.setWindowIcon(QIcon(self.appIconPath))
                             errorMessage.exec()
-                            return None
+
                     with open(settingsFilePath, "w") as settingsFile:
                         tomlObject["theme"]["xml"] = selectedTheme
                         tomlObject["theme"]["name"] = selectedThemeName
@@ -767,7 +769,6 @@ Button (Ctrl + O).""", homeWidget
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
 
             self._createMenuBar()
             settingsDialog.close()
@@ -843,7 +844,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
+
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -854,7 +855,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
+
             self.statusBar.showMessage("Image Saved", 2000)
         else:
             self.onSaveAsActionTriggered()
@@ -888,7 +889,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
+
             except OSError as e:
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
@@ -899,7 +900,7 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
+
             self.activeImagePath = f
             self.statusBar.showMessage(
                 f"Image Saved As {self.activeImagePath}", 2000
@@ -923,7 +924,6 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
 
             maintainAspect = resizeDialogAspectRatio.isChecked()
 
@@ -1083,7 +1083,6 @@ Extension.",
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
                 errorMessage.exec()
-                return None
 
             rotateDialog.close()
             self.statusBar.showMessage(f"Image Rotated {angle} Degrees", 2000)
@@ -1094,7 +1093,12 @@ Extension.",
             return ImageQt.ImageQt(preview)
 
         def __pickColor():
-            self.rotatedImgColor = QColorDialog.getColor().name()
+            self.rotatedImgColor = QColorDialog.getColor(
+                initial=QColor("#ffffff"),
+                parent=self,
+                title="Select Color",
+            ).name()
+
             rotateDialogColorPreview.setVisible(True)
             rotateDialogColorPreview.setPixmap(QPixmap.fromImage(
                 __preview(self.rotatedImgColor))
@@ -1137,7 +1141,12 @@ Extension.",
         rotateDialogColorPicker.clicked.connect(__pickColor)
 
         rotateDialogColorAlpha = QPushButton("Transparent", rotateDialogColor)
+        rotateDialogColorAlpha.setCheckable(True)
         rotateDialogColorAlpha.clicked.connect(__transparent)
+
+        if self.activeImage.mode == "RGBA":
+            rotateDialogColorAlpha.click()
+            rotateDialogColorAlpha.setChecked(True)
 
         rotateDialogColorLayout.addWidget(rotateDialogColorLabel)
         rotateDialogColorLayout.addSpacing(10)
@@ -1430,7 +1439,7 @@ File!\" Buttton!",
                     )
                     errorMessage.setWindowIcon(QIcon(self.appIconPath))
                     errorMessage.exec()
-                    return None
+
             self.activeImage = image
         except UnidentifiedImageError:
             errorMessage = QMessageBox(
@@ -1441,7 +1450,6 @@ File!\" Buttton!",
             )
             errorMessage.setWindowIcon(QIcon(self.appIconPath))
             errorMessage.exec()
-            return None
 
     @pyqtProperty(Image.Image, notify=activeImageChanged)
     def activeImage(self) -> Image.Image:
