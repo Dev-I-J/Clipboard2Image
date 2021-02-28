@@ -342,7 +342,7 @@ class Clipboard2Image(QMainWindow):
 
         self.zoomActionGroup = QActionGroup(zoomActionMenu)
 
-        zoomCustom = QAction("Custom", zoomActionMenu)
+        self.zoomCustom = QAction("Custom", zoomActionMenu)
         zoom10Percent = QAction("10%", zoomActionMenu)
         zoom25Percent = QAction("25%", zoomActionMenu)
         zoom50Percent = QAction("50%", zoomActionMenu)
@@ -356,7 +356,7 @@ class Clipboard2Image(QMainWindow):
         zoom1000Percent = QAction("1000%", zoomActionMenu)
         zoom2000Percent = QAction("2000%", zoomActionMenu)
 
-        zoomCustom.setCheckable(True)
+        self.zoomCustom.setCheckable(True)
         zoom10Percent.setCheckable(True)
         zoom25Percent.setCheckable(True)
         zoom50Percent.setCheckable(True)
@@ -372,7 +372,7 @@ class Clipboard2Image(QMainWindow):
 
         zoom100Percent.setChecked(True)
 
-        zoomActionMenu.addAction(zoomCustom)
+        zoomActionMenu.addAction(self.zoomCustom)
         zoomActionMenu.addSeparator()
         zoomActionMenu.addAction(zoom10Percent)
         zoomActionMenu.addAction(zoom25Percent)
@@ -387,7 +387,7 @@ class Clipboard2Image(QMainWindow):
         zoomActionMenu.addAction(zoom1000Percent)
         zoomActionMenu.addAction(zoom2000Percent)
 
-        self.zoomActionGroup.addAction(zoomCustom)
+        self.zoomActionGroup.addAction(self.zoomCustom)
         self.zoomActionGroup.addAction(zoom10Percent)
         self.zoomActionGroup.addAction(zoom25Percent)
         self.zoomActionGroup.addAction(zoom50Percent)
@@ -655,7 +655,13 @@ Button (Ctrl + O).""", homeWidget
 
         self.imageViewScrollArea.setWidget(self.imageViewLabel)
 
+        imageViewZoom = QPushButton("Zoom", imageViewWidget)
+        imageViewZoom.clicked.connect(
+            lambda: self.zoomActionGroup.triggered.emit(self.zoomCustom)
+        )
+
         imageViewLayout.addWidget(self.imageViewScrollArea)
+        imageViewLayout.addWidget(imageViewZoom)
 
         imageViewWidget.setLayout(imageViewLayout)
 
