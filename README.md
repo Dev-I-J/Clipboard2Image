@@ -22,12 +22,12 @@ Installers and zips are Windows only at this time (excluding Windows 7).
 
 1. Download the [Latest Installer](https://github.com/Dev-I-J/Clipboard2Image/releases/latest). The installer has the following file name: `Clipboard2Image_<version>_Installer.exe` (&lt;version&gt; is the version of Clipboard2Image you are installing)
 2. Double click the installer file.
-3. Proceed with the installer wizard as you waould normaly do with any program.
+3. Proceed with the installer wizard as you would normaly do with any program.
 
 #### ZIP File
 
 1. Download the [Latest Zip](https://github.com/Dev-I-J/Clipboard2Image/releases/latest). The zip file has the following file name: `Clipboard2Image_<version>.zip` (&lt;version&gt; is the version of Clipboard2Image you are installing)
-2. Extract the image to a path you prefer ([7zip](https://www.7-zip.org) is recommended).
+2. Extract the zip to a path you prefer ([7zip](https://www.7-zip.org) is recommended).
 3. Navigate to the extraction path and double click `Clipboard2Image.exe`.
 
 ### Build From Source
