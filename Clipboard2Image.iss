@@ -33,7 +33,7 @@ DisableStartupPrompt=no
 DisableWelcomePage=no
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-MinVersion=10.0.10240
+MinVersion=6.2.9200
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
