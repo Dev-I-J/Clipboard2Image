@@ -8,7 +8,10 @@ toml = "*"
 pyqt5 = "*"
 pillow = "*"
 appdirs = "*"
+send2trash = "*"
 qt-material = "*"
+pywin32 = {version = "*", sys_platform = "== 'win32'"}
+winshell = {version = "*", sys_platform = "== 'win32'"}
 
 [dev-packages]
 flake8 = "*"

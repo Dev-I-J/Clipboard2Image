@@ -29,6 +29,8 @@ from PyQt5.QtWidgets import (
 
 from PyQt5.QtCore import (
     QSize,
+    QStandardPaths,
+    QBuffer,
     Qt,
     pyqtProperty,
     pyqtSignal,
@@ -52,18 +54,15 @@ from PIL import Image, ImageGrab, ImageOps, ImageQt, UnidentifiedImageError
 from PIL import __version__ as pil_version
 
 from qt_material import list_themes, apply_stylesheet
-
+from send2trash import send2trash, TrashPermissionError
 from appdirs import user_config_dir
-
-from PyInstaller import __version__ as pyinstaller_version
-
-from pip import __version__ as pip_version
-
-from pkg_resources import working_set
-from subprocess import run
+from winshell import delete_file
 
 import toml
 
+from io import BytesIO
+
+import subprocess
 import sys
 import os
 
@@ -73,9 +72,7 @@ class Clipboard2Image(QMainWindow):
     appVersion = "0.0.1-alpha"
     appTheme = "light_blue.xml"
     appThemeName = "Light Blue"
-    appIconPath = os.path.abspath(
-        os.path.realpath("src/icons/appicon.png")
-    )
+    appIconPath = "icons/appicon.png"
 
     supportedFormats = [
         "BMP Image (*.bmp)",
@@ -118,10 +115,11 @@ class Clipboard2Image(QMainWindow):
     _activeImage = None
     _activeImagePath = None
 
-    def __init__(self, app: QApplication) -> None:
+    def __init__(self, app: QApplication, callpath: str) -> None:
         super().__init__()
 
         self.app = app
+        self.callpath = callpath
 
         self._loadSettings()
         self._processArgs()
@@ -140,12 +138,24 @@ class Clipboard2Image(QMainWindow):
         )
 
         if os.path.exists(settingsFilePath):
-            with open(settingsFilePath, "r") as settingsFile:
-                tomlObject = toml.load(settingsFile)
-                self.appTheme = tomlObject["theme"]["xml"]
-                self.appThemeName = tomlObject["theme"]["name"]
+            try:
+                with open(settingsFilePath, "r") as settingsFile:
+                    tomlObject = toml.load(settingsFile)
+                    self.appTheme = tomlObject["theme"]["xml"]
+                    self.appThemeName = tomlObject["theme"]["name"]
+            except toml.TomlDecodeError as e:
+                os.remove(settingsFilePath)
+                errorMessage = QMessageBox(
+                    QMessageBox.Warning,
+                    self.appTitle,
+                    "Unable To Parse The Settings File!",
+                    QMessageBox.Ok
+                )
+                errorMessage.setInformativeText(str(e))
+                errorMessage.setWindowIcon(QIcon(self.appIconPath))
+                return errorMessage.exec()
         else:
-            os.makedirs(os.path.dirname(settingsFilePath))
+            os.makedirs(os.path.dirname(settingsFilePath), exist_ok=True)
             with open(settingsFilePath, "w") as settingsFile:
                 settingsDict = {
                     "theme": {
@@ -156,12 +166,40 @@ class Clipboard2Image(QMainWindow):
                 toml.dump(settingsDict, settingsFile)
 
     def _processArgs(self) -> None:
-        if (len(sys.argv) >= 3) and (sys.argv[1] == "--theme") and (
-            theme := sys.argv[2].replace('-', '_')+'.xml'
-        ) in list_themes():
-            self.appTheme = theme
-            self.appThemeName = sys.argv[2].replace('-', ' ').title()
-        self._createMenuBar()
+        try:
+            if (len(sys.argv) == 3) and (sys.argv[1] == "--theme") and (
+                theme := sys.argv[2].replace('-', '_')+'.xml'
+            ) in list_themes():
+                self.appTheme = theme
+                self.appThemeName = sys.argv[2].replace('-', ' ').title()
+            elif (len(sys.argv) == 2) and (os.path.isfile(
+                path := os.path.join(
+                    self.callpath, sys.argv[1]
+                )
+            )):
+                self.activeImage = Image.open(path)
+                self.activeImagePath = path
+        except UnidentifiedImageError:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                "Unidentified Image Type Found! Plase Try Another \
+Extension.",
+                QMessageBox.Ok
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+            return errorMessage.exec()
+
+        except OSError as e:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                "Unable To Open Your Image!",
+                QMessageBox.Ok
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+            errorMessage.setInformativeText(str(e))
+            return errorMessage.exec()
 
     def _createWindow(self) -> None:
         __screenSize = self.app.desktop().screenGeometry()
@@ -254,90 +292,73 @@ class Clipboard2Image(QMainWindow):
 
         newWindowAction = QAction("New Window", self)
         newWindowAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-new-window-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-new-window-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-new-window-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-new-window-white-50.png"
         ))
         newWindowAction.setShortcut(QKeySequence.New)
         newWindowAction.triggered.connect(self.onNewWindowActionTriggered)
 
         self.pasteAction = QAction("Paste", self)
         self.pasteAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-paste-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-paste-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-paste-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-paste-white-50.png"
         ))
         self.pasteAction.setShortcut(QKeySequence.Paste)
         self.pasteAction.triggered.connect(self.imagePasted)
 
         self.openAction = QAction("Open", self)
         self.openAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-folder-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-folder-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-folder-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-folder-white-50.png"
         ))
         self.openAction.setShortcut(QKeySequence.Open)
+        self.openAction.triggered.connect(self.onOpenActionTriggered)
+
+        self.deleteAction = QAction("Delete", self)
+        self.deleteAction.setIcon(QIcon(
+            "icons/icons8/icons8-delete-bin-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-delete-bin-white-50.png"
+        ))
+        self.deleteAction.setEnabled(self.activeImagePath is not None)
+        self.deleteAction.setShortcut(QKeySequence.Delete)
+        self.deleteAction.triggered.connect(self.onDeleteActionTriggered)
 
         exitAction = QAction("Exit", self)
         exitAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-exit-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-exit-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-exit-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-exit-white-50.png"
         ))
         exitAction.setShortcut(Qt.CTRL+Qt.Key_Q)
         exitAction.triggered.connect(self.close)
 
         settingsAction = QAction("Settings", self)
         settingsAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-settings-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-settings-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-settings-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-settings-white-50.png"
         ))
         settingsAction.setShortcut(Qt.ALT+Qt.SHIFT+Qt.Key_S)
         settingsAction.triggered.connect(self.onSettingsActionTriggered)
 
         self.backAction = QAction("Back", self)
         self.backAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-back-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-back-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-back-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-back-white-50.png"
         ))
         self.backAction.setShortcut(QKeySequence.Back)
         self.backAction.triggered.connect(self.onBackActionTriggered)
 
         zoomActionMenu = QMenu("Zoom", self.imageMenu)
         zoomActionMenu.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-zoom-mode-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-zoom-mode-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-zoom-mode-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-zoom-mode-white-50.png"
         ))
 
         self.zoomActionGroup = QActionGroup(zoomActionMenu)
@@ -405,65 +426,45 @@ class Clipboard2Image(QMainWindow):
 
         self.copyAction = QAction("Copy To Clipboard", self)
         self.copyAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-copy-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-copy-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-copy-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-copy-white-50.png"
         ))
         self.copyAction.setShortcut(QKeySequence.Copy)
         self.copyAction.triggered.connect(self.onCopyActionTriggered)
 
         self.saveAction = QAction("Save", self)
         self.saveAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-save-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-save-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-save-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-save-white-50.png"
         ))
         self.saveAction.setShortcut(QKeySequence.Save)
         self.saveAction.triggered.connect(self.onSaveActionTriggered)
 
         self.saveAsAction = QAction("Save As", self)
         self.saveAsAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-save-as-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-save-as-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-save-as-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-save-as-white-50.png"
         ))
         self.saveAsAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_S)
         self.saveAsAction.triggered.connect(self.onSaveAsActionTriggered)
 
         self.resizeAction = QAction("Resize", self)
         self.resizeAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-resize-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-resize-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-resize-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-resize-white-50.png"
         ))
         self.resizeAction.setShortcut(Qt.CTRL+Qt.Key_R)
         self.resizeAction.triggered.connect(self.onResizeActionTriggered)
 
         self.rotateAction = QAction("Rotate", self)
         self.rotateAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-rotate-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-rotate-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-rotate-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-rotate-white-50.png"
         ))
         self.rotateAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_R)
         self.rotateAction.triggered.connect(self.onRotateActionTriggered)
@@ -472,13 +473,9 @@ class Clipboard2Image(QMainWindow):
             "Rotate 90 Degrees To The Right", self
         )
         self.rotateRightAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-rotate-right-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-rotate-right-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-rotate-right-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-rotate-right-white-50.png"
         ))
         self.rotateRightAction.setShortcut(Qt.ALT+Qt.SHIFT+Qt.Key_R)
         self.rotateRightAction.triggered.connect(
@@ -490,13 +487,9 @@ class Clipboard2Image(QMainWindow):
             self
         )
         self.rotateLeftAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-rotate-left-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-rotate-left-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-rotate-left-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-rotate-left-white-50.png"
         ))
         self.rotateLeftAction.setShortcut(Qt.ALT+Qt.SHIFT+Qt.Key_L)
         self.rotateLeftAction.triggered.connect(
@@ -505,37 +498,27 @@ class Clipboard2Image(QMainWindow):
 
         aboutAction = QAction("About", self)
         aboutAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-about-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-about-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-about-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-about-white-50.png"
         ))
         aboutAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_A)
         aboutAction.triggered.connect(self.onAboutActionTriggered)
 
         licenseAction = QAction("License", self)
         licenseAction.setIcon(QIcon(
-            os.path.abspath(
-                os.path.realpath(
-                    "src/icons/icons8/icons8-software-license-50.png"
-                    if self.appTheme.startswith('light') else
-                    "src/icons/icons8/icons8-software-license-white-50.png"
-                )
-            )
+            "icons/icons8/icons8-software-license-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-software-license-white-50.png"
         ))
         licenseAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_L)
         licenseAction.triggered.connect(self.onLicenseActionTriggered)
 
         devInfoAction = QAction("Developer Info", self)
         devInfoAction.setIcon(QIcon(
-            os.path.abspath(
-                "src/icons/icons8/icons8-code-50.png"
-                if self.appTheme.startswith('light') else
-                "src/icons/icons8/icons8-code-white-50.png"
-            )
+            "icons/icons8/icons8-code-50.png"
+            if self.appTheme.startswith('light') else
+            "icons/icons8/icons8-code-white-50.png"
         ))
         devInfoAction.setShortcut(Qt.CTRL+Qt.SHIFT+Qt.Key_D)
         devInfoAction.triggered.connect(self.onDevInfoActionTriggered)
@@ -544,6 +527,7 @@ class Clipboard2Image(QMainWindow):
         fileMenu.addSeparator()
         fileMenu.addAction(self.pasteAction)
         fileMenu.addAction(self.openAction)
+        fileMenu.addAction(self.deleteAction)
         fileMenu.addSeparator()
         fileMenu.addAction(exitAction)
 
@@ -574,40 +558,9 @@ class Clipboard2Image(QMainWindow):
         self.setMenuBar(menuBar)
 
     def _createWidgets(self) -> None:
-        def __openImage():
-            try:
-                imageFile = QFileDialog.getOpenFileName(
-                    self,
-                    "Select An Image To Open",
-                    filter=f"Image Files \
-({' '.join(self.supportedExtensions)});;{';;'.join(self.supportedFormats)}\
-;;All Files (*)"
-                )
-                self.activeImage = (
-                    Image.open(imageFile[0]) if imageFile[0] else None
-                )
-                self.activeImagePath = imageFile[0] if imageFile[0] else None
-            except UnidentifiedImageError:
-                errorMessage = QMessageBox(
-                    QMessageBox.Warning,
-                    self.appTitle,
-                    "Unidentified Image Type Found! Plase Try Another \
-Extension.",
-                    QMessageBox.Ok
-                )
-                errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
-
-            except OSError as e:
-                errorMessage = QMessageBox(
-                    QMessageBox.Warning,
-                    self.appTitle,
-                    "Unable To Open Your Image!",
-                    QMessageBox.Ok
-                )
-                errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.setInformativeText(str(e))
-                errorMessage.exec()
+        def __zoomClicked():
+            self.zoomCustom.setChecked(True)
+            self.zoomActionGroup.triggered.emit(self.zoomCustom)
 
         homeWidget = QWidget(self.centralWidget)
 
@@ -631,8 +584,7 @@ Button (Ctrl + O).""", homeWidget
         homeOpenImage = QPushButton(
             "Open An Image File!", homeWidget
         )
-        homeOpenImage.clicked.connect(__openImage)
-        self.openAction.triggered.connect(__openImage)
+        homeOpenImage.clicked.connect(self.onOpenActionTriggered)
 
         homeLayout.addWidget(homePasteLabel)
         homeLayout.addSpacing(50)
@@ -656,9 +608,7 @@ Button (Ctrl + O).""", homeWidget
         self.imageViewScrollArea.setWidget(self.imageViewLabel)
 
         imageViewZoom = QPushButton("Zoom", imageViewWidget)
-        imageViewZoom.clicked.connect(
-            lambda: self.zoomActionGroup.triggered.emit(self.zoomCustom)
-        )
+        imageViewZoom.clicked.connect(__zoomClicked)
 
         imageViewLayout.addWidget(self.imageViewScrollArea)
         imageViewLayout.addWidget(imageViewZoom)
@@ -669,7 +619,7 @@ Button (Ctrl + O).""", homeWidget
         self.centralWidget.addWidget(imageViewWidget)
         self.centralWidget.setCurrentIndex(0)
 
-    def _createToolBar(self):
+    def _createToolBar(self) -> None:
         self.toolBar = QToolBar(self)
         self.toolBar.setMovable(False)
         self.toolBar.addAction(self.backAction)
@@ -677,6 +627,7 @@ Button (Ctrl + O).""", homeWidget
         self.toolBar.addAction(self.copyAction)
         self.toolBar.addAction(self.saveAction)
         self.toolBar.addAction(self.saveAsAction)
+        self.toolBar.addAction(self.deleteAction)
         self.toolBar.addSeparator()
         self.toolBar.addAction(self.resizeAction)
         self.toolBar.addAction(self.rotateAction)
@@ -685,7 +636,7 @@ Button (Ctrl + O).""", homeWidget
 
         self.addToolBar(self.toolBar)
 
-    def _createStatusBar(self):
+    def _createStatusBar(self) -> None:
         self.statusBar = QStatusBar(self)
 
         self.imageZoom = QLabel("100%", self.statusBar)
@@ -717,9 +668,101 @@ Button (Ctrl + O).""", homeWidget
     @pyqtSlot()
     def onNewWindowActionTriggered(_) -> None:
         if not getattr(sys, "frozen", False):
-            run([sys.executable, sys.argv[0]])
+            subprocess.Popen([sys.executable, sys.argv[0]])
         else:
-            run([sys.executable])
+            subprocess.Popen([sys.executable])
+
+    @pyqtSlot()
+    def onOpenActionTriggered(self) -> None:
+        try:
+            imageFile = QFileDialog.getOpenFileName(
+                self,
+                "Select An Image To Open",
+                QStandardPaths.standardLocations(
+                    QStandardPaths.PicturesLocation
+                )[-1],
+                f"Image Files \
+({' '.join(self.supportedExtensions)});;{';;'.join(self.supportedFormats)}\
+;;All Files (*)"
+            )
+            self.activeImage = (
+                Image.open(imageFile[0]) if imageFile[0] else None
+            )
+            self.activeImagePath = imageFile[0] if imageFile[0] else None
+        except UnidentifiedImageError:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                "Unidentified Image Type Found! Plase Try Another \
+Extension.",
+                QMessageBox.Ok
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+            return errorMessage.exec()
+
+        except OSError as e:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                "Unable To Open Your Image!",
+                QMessageBox.Ok
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+            errorMessage.setInformativeText(str(e))
+            return errorMessage.exec()
+
+    @pyqtSlot()
+    def onDeleteActionTriggered(self) -> None:
+        try:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                f"Are You Sure You Want To Send Send \"{self.activeImagePath}\" \
+To The Recycle Bin!",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+
+            if errorMessage.exec() == QMessageBox.Yes:
+                if sys.platform == "win32":
+                    delete_file(self.activeImagePath)
+                else:
+                    send2trash(self.activeImagePath)
+                if os.path.isfile(self.activeImagePath):
+                    raise OSError("Unknown error!")
+                else:
+                    self.activeImage = None
+                    self.activeImagePath = None
+        except (TrashPermissionError, OSError) as e:
+            errorMessage = QMessageBox(
+                QMessageBox.Warning,
+                self.appTitle,
+                f"Unable To Send File To The Recycle Bin! Do You Want To Delete\
+                {self.activeImagePath} Permanently?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            errorMessage.setWindowIcon(QIcon(self.appIconPath))
+            errorMessage.setInformativeText(str(e))
+
+            res = errorMessage.exec()
+
+            if res == QMessageBox.Yes:
+                try:
+                    os.remove(self.activeImagePath)
+                    self.activeImage = None
+                    self.activeImagePath = None
+                except OSError as e:
+                    errorMessage = QMessageBox(
+                        QMessageBox.Warning,
+                        self.appTitle,
+                        f"Unable To Delete {self.activeImagePath}!",
+                        QMessageBox.Ok
+                    )
+                    errorMessage.setWindowIcon(QIcon(self.appIconPath))
+                    errorMessage.setInformativeText(str(e))
+                    self.activeImage = None
+                    self.activeImagePath = None
+                    return errorMessage.exec()
 
     @pyqtSlot()
     def onSettingsActionTriggered(self) -> None:
@@ -728,6 +771,13 @@ Button (Ctrl + O).""", homeWidget
             selectedTheme = selectedThemeName.replace(' ', '_').lower()+'.xml'
 
             apply_stylesheet(self.app, theme=selectedTheme)
+
+            with open("style/style.qss", "r") as stylesheet:
+                self.app.setStyleSheet(
+                    self.app.styleSheet() + stylesheet.read().format(
+                        **os.environ
+                    )
+                )
 
             self.appThemeName = selectedThemeName
             self.appTheme = selectedTheme
@@ -741,6 +791,7 @@ Button (Ctrl + O).""", homeWidget
                         try:
                             tomlObject = toml.load(settingsFile)
                         except toml.TomlDecodeError as e:
+                            os.remove(settingsFilePath)
                             errorMessage = QMessageBox(
                                 QMessageBox.Warning,
                                 self.appTitle,
@@ -749,14 +800,15 @@ Button (Ctrl + O).""", homeWidget
                             )
                             errorMessage.setInformativeText(str(e))
                             errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                            errorMessage.exec()
+                            return errorMessage.exec()
 
                     with open(settingsFilePath, "w") as settingsFile:
                         tomlObject["theme"]["xml"] = selectedTheme
                         tomlObject["theme"]["name"] = selectedThemeName
                         toml.dump(tomlObject, settingsFile)
                 else:
-                    os.makedirs(os.path.dirname(settingsFilePath))
+                    os.makedirs(os.path.dirname(
+                        settingsFilePath), exist_ok=True)
                     with open(settingsFilePath, "w") as settingsFile:
                         settingsDict = {
                             "theme": {
@@ -774,9 +826,13 @@ Button (Ctrl + O).""", homeWidget
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             self._createMenuBar()
+            self.removeToolBar(self.toolBar)
+            self._createToolBar()
+            self.activeImageChanged.emit()
+
             settingsDialog.close()
 
         settingsDialog = QDialog(self)
@@ -810,7 +866,7 @@ Button (Ctrl + O).""", homeWidget
         settingsDialog.exec()
 
     @pyqtSlot()
-    def onBackActionTriggered(self):
+    def onBackActionTriggered(self) -> None:
         backConfirmation = QMessageBox(
             QMessageBox.Warning,
             self.appTitle,
@@ -827,14 +883,14 @@ Button (Ctrl + O).""", homeWidget
             self.activeImagePath = None
 
     @pyqtSlot()
-    def onCopyActionTriggered(self):
+    def onCopyActionTriggered(self) -> None:
         self.app.clipboard().setPixmap(QPixmap.fromImage(
             ImageQt.ImageQt(self.activeImage.convert("RGBA"))
         ))
         self.statusBar.showMessage("Image Copied To Clipboard", 2000)
 
     @pyqtSlot()
-    def onSaveActionTriggered(self):
+    def onSaveActionTriggered(self) -> None:
         if self.activeImagePath is not None:
             try:
                 with open(self.activeImagePath, "wb") as imageFile:
@@ -849,7 +905,7 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             except OSError as e:
                 errorMessage = QMessageBox(
@@ -860,14 +916,14 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             self.statusBar.showMessage("Image Saved", 2000)
         else:
             self.onSaveAsActionTriggered()
 
     @pyqtSlot()
-    def onSaveAsActionTriggered(self):
+    def onSaveAsActionTriggered(self) -> None:
         fileFormatList = [
             f for f in self.supportedFormats if not f.startswith(
                 self.activeImage.format.upper()
@@ -876,7 +932,10 @@ Extension.",
         saveFilePath = QFileDialog.getSaveFileName(
             self,
             "Save Your Image As",
-            filter=f"{self.activeImage.format} Image \
+            QStandardPaths.standardLocations(
+                QStandardPaths.PicturesLocation
+            )[-1],
+            f"{self.activeImage.format} Image \
 (*.{self.activeImage.format.lower()});;{';;'.join(fileFormatList)};;\
 All Files (*)"
         )
@@ -894,7 +953,7 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             except OSError as e:
                 errorMessage = QMessageBox(
@@ -905,7 +964,7 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             self.activeImagePath = f
             self.statusBar.showMessage(
@@ -913,7 +972,7 @@ Extension.",
             )
 
     @pyqtSlot()
-    def onResizeActionTriggered(self):
+    def onResizeActionTriggered(self) -> None:
         def __resizeImage():
             oldDimensions = self.imageDimensions.text()
 
@@ -929,7 +988,7 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             maintainAspect = resizeDialogAspectRatio.isChecked()
 
@@ -1060,7 +1119,7 @@ Extension.",
         resizeDialog.exec()
 
     @pyqtSlot()
-    def onRotateActionTriggered(self):
+    def onRotateActionTriggered(self) -> None:
         def __rotateImage():
             try:
                 angle = int(rotateDialogAngleField.text())
@@ -1088,7 +1147,7 @@ Extension.",
                 )
                 errorMessage.setInformativeText(str(e))
                 errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                errorMessage.exec()
+                return errorMessage.exec()
 
             rotateDialog.close()
             self.statusBar.showMessage(f"Image Rotated {angle} Degrees", 2000)
@@ -1100,9 +1159,9 @@ Extension.",
 
         def __pickColor():
             self.rotatedImgColor = QColorDialog.getColor(
-                initial=QColor("#ffffff"),
-                parent=self,
-                title="Select Color",
+                QColor("#ffffff"),
+                self,
+                "Select Color",
             ).name()
 
             rotateDialogColorPreview.setVisible(True)
@@ -1186,7 +1245,7 @@ Extension.",
         rotateDialog.exec()
 
     @pyqtSlot()
-    def onRotateRightActionTriggered(self):
+    def onRotateRightActionTriggered(self) -> None:
         imgFormat = self.activeImage.format
         self.activeImage = self.activeImage.transpose(Image.ROTATE_270)
         self.activeImage.format = imgFormat
@@ -1194,7 +1253,7 @@ Extension.",
         self.statusBar.showMessage("Image Rotated To The Right", 2000)
 
     @pyqtSlot()
-    def onRotateLeftActionTriggered(self):
+    def onRotateLeftActionTriggered(self) -> None:
         imgFormat = self.activeImage.format
         self.activeImage = self.activeImage.transpose(Image.ROTATE_90)
         self.activeImage.format = imgFormat
@@ -1208,18 +1267,12 @@ Extension.",
         aboutDialogLayout = QVBoxLayout(aboutDialog)
 
         aboutDialogLogo = QLabel(aboutDialog)
-        aboutDialogLogo.setPixmap(
-            QPixmap(
-                os.path.abspath(
-                    os.path.realpath("src/icons/logo.png")
-                )
-            ).scaled(
-                QSize(
-                    (self.width() - 110),
-                    (self.height() - 100)
-                ), Qt.KeepAspectRatio
-            )
-        )
+        aboutDialogLogo.setPixmap(QPixmap("icons/logo.png").scaled(
+            QSize(
+                (self.width() - 110),
+                (self.height() - 100)
+            ), Qt.KeepAspectRatio
+        ))
 
         aboutDialogText = QLabel(
             """\
@@ -1276,9 +1329,7 @@ For More Developer Info, Use <code>Help > Developer Info</code>
         licenseDialogText = QTextBrowser(licenseDialog)
         licenseDialogText.setOpenExternalLinks(True)
 
-        with open(
-            os.path.abspath(os.path.realpath("src/html/license.html")), "r"
-        ) as license:
+        with open("html/license.html", "r") as license:
             licenseDialogText.setHtml(license.read())
 
         licenseDialogButtons = QDialogButtonBox(
@@ -1303,19 +1354,12 @@ For More Developer Info, Use <code>Help > Developer Info</code>
         sysVersion = sys.version
         sysVersionInfo = sys.version_info
 
-        pipVersion = pip_version
-        pipModulesStr = "(package - version)<br>"
-
-        for m in working_set:
-            pipModulesStr += f"<br><span>{m.project_name} - {m.parsed_version}"
-
         pilVersion = pil_version
 
         pyqtVersion = PYQT_VERSION_STR
         qtVersion = QT_VERSION_STR
         sipVersion = SIP_VERSION_STR
 
-        pyInstallerVersion = pyinstaller_version
         pyInstallerExe = "Yes" if getattr(sys, "frozen", False) else "No"
 
         devInfoDialog = QDialog(self)
@@ -1334,9 +1378,6 @@ For More Developer Info, Use <code>Help > Developer Info</code>
 <b><code><b>sys.version</code>:</b> <i><code>{sysVersion}</code></i></i><br>
 <b><code><b>sys.version_info</code>:</b>
 <i><code>{sysVersionInfo}</code></i></i><br>
-<h3>pip</h3>
-<b><code><b>pip</code> version:</b> <i><code>{pipVersion}</code></i><br>
-<b><code><b>pip</code> packages:</b> <i><code>{pipModulesStr}</code></i><br>
 <h3>PIL</h3>
 <b><code>PIL (pillow)</code> version:</b> <i><code>{pilVersion}</code></i><br>
 <h3>PyQt</h3>
@@ -1344,11 +1385,8 @@ For More Developer Info, Use <code>Help > Developer Info</code>
 <b><code><b>Qt</code> version:</b> <i><code>{qtVersion}</code></i><br>
 <b><code><b>sip</code> version:</b> <i><code>{sipVersion}</code></i><br>
 <h3>PyInstaller</h3>
-<b><code>PyInstaller</code> version:</b>
-<i><code>{pyInstallerVersion}</code></i><br>
-<b>App is running inside a <code>PyInstaller</code>
-executable:</b> <i><code>{pyInstallerExe}</code></i><br>
-        """)
+<b><code>PyInstaller</code> bundle:</b> <i><code>{pyInstallerExe}</code></i>
+""")
 
         devInfoDialogButtons = QDialogButtonBox(
             QDialogButtonBox.Ok, devInfoDialog
@@ -1421,16 +1459,32 @@ executable:</b> <i><code>{pyInstallerExe}</code></i><br>
             self.centralWidget.setCurrentIndex(0)
 
     @pyqtSlot()
-    def onActiveImagePathChanged(self):
+    def onActiveImagePathChanged(self) -> None:
         if (path := self.activeImagePath) is not None:
-            self.setWindowTitle(f"{self.appTitle} {self.appVersion} - {path}")
+            self.setWindowTitle(
+                f"{self.appTitle} {self.appVersion} - \"{path}\""
+            )
+            self.deleteAction.setEnabled(True)
         else:
             self.setWindowTitle(f"{self.appTitle} {self.appVersion}")
+            self.deleteAction.setEnabled(False)
 
     @pyqtSlot()
     def imagePasted(self) -> None:
         try:
-            image = ImageGrab.grabclipboard()
+            if sys.platform in ["wi32", "darwin"]:
+                image = ImageGrab.grabclipboard()
+            else:
+                buffer = QBuffer(self)
+                buffer.open(QBuffer.ReadWrite)
+
+                clipboard = self.app.clipboard().image()
+                clipboard.save(buffer, "PNG")
+
+                imgFile = BytesIO(buffer.data())
+
+                image = Image.open(imgFile)
+
             if type(image) is list:
                 image = Image.open(image[0])
             else:
@@ -1444,7 +1498,7 @@ File!\" Buttton!",
                         QMessageBox.Ok
                     )
                     errorMessage.setWindowIcon(QIcon(self.appIconPath))
-                    errorMessage.exec()
+                    return errorMessage.exec()
 
             self.activeImage = image
         except UnidentifiedImageError:
@@ -1455,7 +1509,7 @@ File!\" Buttton!",
                 QMessageBox.Ok
             )
             errorMessage.setWindowIcon(QIcon(self.appIconPath))
-            errorMessage.exec()
+            return errorMessage.exec()
 
     @pyqtProperty(Image.Image, notify=activeImageChanged)
     def activeImage(self) -> Image.Image:
