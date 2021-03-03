@@ -22,7 +22,6 @@ OutputBaseFilename={#AppName}_{#AppVersion}_Installer
 SetupIconFile=src\icons\appicon.ico
 Compression=lzma
 SolidCompression=yes
-PrivilegesRequired=lowest
 DisableStartupPrompt=no
 DisableWelcomePage=no
 ArchitecturesAllowed=x64
