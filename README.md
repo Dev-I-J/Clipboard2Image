@@ -2,6 +2,8 @@
 
 Clipboard2Image Is A FOSS Tool To Create Images By Copy-Pasting Them.
 
+![Screenshot](screenshot.png)
+
 ## Features
 
 * Get started by copy-pasting an image from a browser, an image file or open an existing image file!
