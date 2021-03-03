@@ -24,7 +24,7 @@ for dir in project_dirs:
 block_cipher = None
 
 
-a = Analysis([r'src\main.py'],
+a = Analysis([r'src\main.py' if sys.platform == "win32" else "src/main.py"],
              pathex=[os.path.abspath(os.path.realpath("."))],
              binaries=[],
              datas=datas,
@@ -48,13 +48,13 @@ exe = EXE(pyz,
           strip=False,
           upx=False,
           console=False,
-          icon=r"src\icons\appicon.ico"
+          icon=(r"src\icons\appicon.ico" if sys.platform == "win32" else "src/icons/appicon.icns" if sys.platform == "darwin" else "src/icons/appicon.png")
 )
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
                a.datas,
                strip=False,
-               upx=True,
-               upx_exclude=[r"qwindows.dll"],
+               upx=(sys.platform == "win32"),
+               upx_exclude=["qwindows.dll"],
                name='Clipboard2Image')
