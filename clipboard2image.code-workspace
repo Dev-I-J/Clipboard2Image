@@ -9,7 +9,10 @@
 	],
 	"settings": {
 		"cSpell.words": [
+			"ICNS",
+			"Popen",
 			"RGBA",
+			"chdir",
 			"pyinstaller",
 			"pyqt"
 		]

@@ -183,7 +183,7 @@ class Clipboard2Image(QMainWindow):
             errorMessage = QMessageBox(
                 QMessageBox.Warning,
                 self.appTitle,
-                "Unidentified Image Type Found! Plase Try Another \
+                "Unidentified Image Type Found! Please Try Another \
 Extension.",
                 QMessageBox.Ok
             )
@@ -693,7 +693,7 @@ Button (Ctrl + O).""", homeWidget
             errorMessage = QMessageBox(
                 QMessageBox.Warning,
                 self.appTitle,
-                "Unidentified Image Type Found! Plase Try Another \
+                "Unidentified Image Type Found! Please Try Another \
 Extension.",
                 QMessageBox.Ok
             )
@@ -983,7 +983,7 @@ Extension.",
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
                     self.appTitle,
-                    "Invalid Value Entered! Plase Enter A Valid Value.",
+                    "Invalid Value Entered! Please Enter A Valid Value.",
                     QMessageBox.Ok
                 )
                 errorMessage.setInformativeText(str(e))
@@ -1142,7 +1142,7 @@ Extension.",
                 errorMessage = QMessageBox(
                     QMessageBox.Warning,
                     self.appTitle,
-                    "Invalid Value Entered! Plase Enter A Valid Value.",
+                    "Invalid Value Entered! Please Enter A Valid Value.",
                     QMessageBox.Ok
                 )
                 errorMessage.setInformativeText(str(e))
@@ -1505,7 +1505,7 @@ File!\" Buttton!",
             errorMessage = QMessageBox(
                 QMessageBox.Warning,
                 self.appTitle,
-                "Unable To Open Your Image! Plase Try Another One.",
+                "Unable To Open Your Image! Please Try Another One.",
                 QMessageBox.Ok
             )
             errorMessage.setWindowIcon(QIcon(self.appIconPath))
